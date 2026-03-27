@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 # ================= CONFIG =================
-TOKEN = "8593777904:AAE6SCjuZs6euRHU7tzofEvz90721oKch8k"
+TOKEN = "8244382896:AAHRnS5akHfPzDK0TNaZlaYHhJXuyexacUM"
 
 # ================= SESSION =================
 user_sessions = {}
