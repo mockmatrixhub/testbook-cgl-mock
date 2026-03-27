@@ -154,15 +154,30 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if current_sec_name not in sections_dict:
                 sections_dict[current_sec_name] = []
 
+            
+                # Updated safer option processing for the Bot
             item = {
                 "answer": str(q.get("correct", 1)),
                 "correct_score": pos,
                 "id": str(50000 + q_num),
                 "negative_score": neg,
-                "option_1": {"en": esc(q["opts_en"][0]), "hi": esc(q["opts_hi"][0]) if q.get("opts_hi") else ""},
-                "option_2": {"en": esc(q["opts_en"][1]), "hi": esc(q["opts_hi"][1]) if q.get("opts_hi") else ""},
-                "option_3": {"en": esc(q["opts_en"][2]), "hi": esc(q["opts_hi"][2]) if q.get("opts_hi") else ""},
-                "option_4": {"en": esc(q["opts_en"][3]), "hi": esc(q["opts_hi"][3]) if q.get("opts_hi") else ""},
+                # English options (usually always present)
+                "option_1": {
+                    "en": esc(q["opts_en"][0]), 
+                    "hi": esc(q["opts_hi"][0]) if (q.get("opts_hi") and len(q["opts_hi"]) > 0) else ""
+                },
+                "option_2": {
+                    "en": esc(q["opts_en"][1]), 
+                    "hi": esc(q["opts_hi"][1]) if (q.get("opts_hi") and len(q["opts_hi"]) > 1) else ""
+                },
+                "option_3": {
+                    "en": esc(q["opts_en"][2]), 
+                    "hi": esc(q["opts_hi"][2]) if (q.get("opts_hi") and len(q["opts_hi"]) > 2) else ""
+                },
+                "option_4": {
+                    "en": esc(q["opts_en"][3]), 
+                    "hi": esc(q["opts_hi"][3]) if (q.get("opts_hi") and len(q["opts_hi"]) > 3) else ""
+                },
                 "option_5": "",
                 "question": {"en": esc(q["q_en"]), "hi": esc(q.get("q_hi", ""))},
                 "quiz_id": session["quiz_id"],
