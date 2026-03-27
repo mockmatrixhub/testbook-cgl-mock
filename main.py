@@ -39,11 +39,9 @@ def esc(txt):
     )
 
 def parse_html_questions(html_content):
-    # Regex to find the 'const questions = [...]' part in the HTML script
     match = re.search(r'const\s+questions\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
     if not match:
         raise ValueError("Could not find 'const questions' array in the HTML file.")
-    
     return json.loads(match.group(1))
 
 # ================= COMMANDS =================
@@ -122,33 +120,43 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         raw_questions = parse_html_questions(html_text)
-        final_json = []
+        
+        # Structure the Output exactly like the provided JSON file
+        sections_dict = {}
         
         sec_lines = session["manual_sections"].splitlines()
         sec_map = []
         for line in sec_lines:
-            m = re.search(r'(.*?)\((\d+)-(\d+)\)-([\d\.]+)-([\d\.]+)', line)
+            # Matches: 1. NAME(1-25)-2-0.5
+            m = re.search(r'(?:[\d\.]+\s*)?(.*?)\((\d+)-(\d+)\)-([\d\.]+)-([\d\.]+)', line)
             if m:
+                sec_name = m.group(1).strip()
                 sec_map.append({
+                    "name": sec_name,
                     "start": int(m.group(2)),
                     "end": int(m.group(3)),
                     "pos": m.group(4),
                     "neg": m.group(5)
                 })
+                sections_dict[sec_name] = []
 
         for i, q in enumerate(raw_questions):
             q_num = i + 1
+            current_sec_name = "MISC"
             pos, neg = "2", "0.5"
+            
             for s in sec_map:
                 if s["start"] <= q_num <= s["end"]:
+                    current_sec_name = s["name"]
                     pos, neg = s["pos"], s["neg"]
                     break
+
+            if current_sec_name not in sections_dict:
+                sections_dict[current_sec_name] = []
 
             item = {
                 "answer": str(q.get("correct", 1)),
                 "correct_score": pos,
-                "deleted": "0",
-                "difficulty_level": "0",
                 "id": str(50000 + q_num),
                 "negative_score": neg,
                 "option_1": {"en": esc(q["opts_en"][0]), "hi": esc(q["opts_hi"][0]) if q.get("opts_hi") else ""},
@@ -158,31 +166,33 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "option_5": "",
                 "question": {"en": esc(q["q_en"]), "hi": esc(q.get("q_hi", ""))},
                 "quiz_id": session["quiz_id"],
-                "solution_text": {"en": esc(q.get("sol_en", "")), "hi": esc(q.get("sol_hi", ""))},
-                "sortingparam": "0.00"
+                "solution_text": {"en": esc(q.get("sol_en", "")), "hi": esc(q.get("sol_hi", ""))}
             }
-            final_json.append(item)
+            sections_dict[current_sec_name].append(item)
 
+        # FINAL OUTPUT STRUCTURE (As per CHSL-2025.json)
         output_data = {
-            "status": True,
-            "quiz_data": final_json,
             "meta": {
                 "title": session["quiz_title"],
-                "timer": str(session["timer_min"]),
-                "sections": session["manual_sections"]
-            }
+                "id": session["quiz_id"],
+                "total_questions": len(raw_questions),
+                "correct_score": "2", # Master setting
+                "negative_score": "0.5",
+                "timer_minutes": str(session["timer_min"]),
+                "timer_seconds": session["timer_min"] * 60
+            },
+            "sections": sections_dict
         }
 
         json_str = json.dumps(output_data, indent=4, ensure_ascii=False)
         file_name = f"{session['quiz_title'].replace(' ', '_')}.json"
         
-        # EXACT CAPTION AS PREVIOUS BOT
         caption = (
             f"<b>✅ Quiz JSON Generated Successfully!</b>\n\n"
             f"<b>📌 Title:</b> {session['quiz_title']}\n"
             f"<b>🔑 ID:</b> <code>{session['quiz_id']}</code>\n"
             f"<b>⏱ Timer:</b> {session['timer_min']} Min\n"
-            f"<b>📝 Total Questions:</b> {len(final_json)}\n\n"
+            f"<b>📝 Total Questions:</b> {len(raw_questions)}\n\n"
             f"<b>📂 Sections:</b>\n{session['manual_sections']}"
         )
 
@@ -193,16 +203,9 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-        # Website Code Snippet
-        website_code = (
-            f'<div class="quiz" data-type="paid" '
-            f'data-id="{session["quiz_id"]}" '
-            f'data-title="{session["quiz_title"]}"></div>'
-        )
-        escaped_code = html.escape(website_code)
+        website_code = f'<div class="quiz" data-type="paid" data-id="{session["quiz_id"]}" data-title="{session["quiz_title"]}"></div>'
         await update.message.reply_text(
-            f"📋 <b>Website Code Snippet:</b>\n\n"
-            f"<pre><code class='language-html'>{escaped_code}</code></pre>",
+            f"📋 <b>Website Code Snippet:</b>\n\n<pre><code class='language-html'>{html.escape(website_code)}</code></pre>",
             parse_mode="HTML"
         )
         
@@ -211,7 +214,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error processing file: {str(e)}")
 
-# ================= MAIN =================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("quiz", quiz_cmd))
