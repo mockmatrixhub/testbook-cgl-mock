@@ -54,6 +54,11 @@ async def quiz_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🚀 Starting JSON generation from HTML.\n\nSelect Exam Type:", reply_markup=reply_markup)
 
+async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    reset_session(update.effective_user.id)
+    await update.message.reply_text("🔄 Session reset. Send /quiz to start again.")
+
+
 # ================= CALLBACK HANDLER =================
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
