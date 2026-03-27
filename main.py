@@ -234,8 +234,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await update.message.reply_text(f"❌ Error processing file: {str(e)}")
+
 # ================= MAIN =================
 def main():
+    # Build the application
     app = ApplicationBuilder().token(TOKEN).build()
 
     # Register command handlers
@@ -249,8 +251,6 @@ def main():
 
     # Start the bot
     app.run_polling()
-    def main():
-    app = ApplicationBuilder().token(TOKEN).build()    
 
 if __name__ == "__main__":
     main()
