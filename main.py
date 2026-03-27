@@ -237,10 +237,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("quiz", quiz_cmd))
+    app.add_handler(CommandHandler("reset", reset_cmd))  # <-- ADD THIS LINE
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.run_polling()
+    def main():
+    app = ApplicationBuilder().token(TOKEN).build()    
 
 if __name__ == "__main__":
     main()
