@@ -45,28 +45,36 @@ def parse_html_questions(html_content):
     match1 = re.search(r'const\s+questions\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
     if match1:
         return json.loads(match1.group(1))
-    
-    # Try Format 2: const data = [...] (New Format)
-    match2 = re.search(r'const\s+data\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
+        
+    # फॉर्मेट 2: const quizData = { "questions": [...] } (आपका नया फॉर्मेट)
+    match2 = re.search(r'const\s+quizData\s*=\s*(\{.*?\});', html_content, re.DOTALL)
     if match2:
-        raw_data = json.loads(match2.group(1))
+        full_data = json.loads(match2.group(1))
+        raw_questions = full_data.get("questions", [])
         standardized = []
-        for item in raw_data:
-            # Split Question (English / Hindi)
-            q_parts = item.get("text", "").split(" / ")
+        
+        for item in raw_questions:
+            # प्रश्न को स्प्लिट करना (English / Hindi)
+            text_content = item.get("text", "")
+            q_parts = text_content.split(" / ")
             q_en = q_parts[0] if len(q_parts) > 0 else ""
             q_hi = q_parts[1] if len(q_parts) > 1 else ""
 
-            # Split Options (English / Hindi)
+            # विकल्पों को स्प्लिट करना
             opts_en = []
             opts_hi = []
             for opt in item.get("options", []):
-                o_parts = opt.split(" / ")
-                opts_en.append(o_parts[0])
-                opts_hi.append(o_parts[1] if len(o_parts) > 1 else "")
+                if " / " in opt:
+                    o_parts = opt.split(" / ")
+                    opts_en.append(o_parts[0])
+                    opts_hi.append(o_parts[1])
+                else:
+                    opts_en.append(opt)
+                    opts_hi.append("") # अगर हिंदी नहीं है तो खाली छोड़ें
 
-            # Split Explanation (English <br><hr><br> Hindi)
-            sol_parts = item.get("explanation", "").split("<br><hr><br>")
+            # समाधान (Explanation) को स्प्लिट करना
+            sol_content = item.get("explanation", "")
+            sol_parts = sol_content.split("<br><hr><br>")
             sol_en = sol_parts[0] if len(sol_parts) > 0 else ""
             sol_hi = sol_parts[1] if len(sol_parts) > 1 else ""
 
@@ -75,14 +83,14 @@ def parse_html_questions(html_content):
                 "q_hi": q_hi,
                 "opts_en": opts_en,
                 "opts_hi": opts_hi,
-                "correct": item.get("correctIndex", 0) + 1, # Convert 0-index to 1-index
+                "correct": item.get("correctIndex", 0) + 1, # 0-index को 1-index में बदलना
                 "sol_en": sol_en,
                 "sol_hi": sol_hi
             })
         return standardized
 
-    raise ValueError("Could not find a supported question array in the HTML file.")
-
+    raise ValueError("प्रदान की गई HTML फ़ाइल में कोई भी समर्थित प्रश्न फॉर्मेट नहीं मिला।")
+    
 # ================= COMMANDS =================
 async def quiz_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reset_session(update.effective_user.id)
