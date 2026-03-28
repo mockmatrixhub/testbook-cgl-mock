@@ -38,59 +38,50 @@ def esc(txt):
            .replace("&lt;br&gt;", "<br>")
     )
 
+# ================= UPDATED PARSING LOGIC =================
+
 def parse_html_questions(html_content):
-    # Try the old format first (JavaScript array)
-    match = re.search(r'const\s+questions\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
-    if match:
-        return json.loads(match.group(1))
+    # Try Format 1: const questions = [...]
+    match1 = re.search(r'const\s+questions\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
+    if match1:
+        return json.loads(match1.group(1))
     
-    # NEW FORMAT DETECTION: Parse from HTML tags directly
-    # We use BeautifulSoup-like regex to extract parts
-    questions_data = []
-    
-    # Split by question cards to isolate each question's block
-    blocks = re.split(r'<div class="card">\s*<h3>Q\d+</h3>', html_content)
-    for block in blocks[1:]:  # Skip the first split before Q1
-        q_en = re.search(r'<div class="question lang-en">(.*?)</div>', block, re.DOTALL)
-        q_hi = re.search(r'<div class="question lang-hi">(.*?)</div>', block, re.DOTALL)
-        
-        # Options - New format provides them in list order
-        # Correct option is identified by class="option correct"
-        opts_en_html = re.search(r'<div class="lang-en">(.*?)</div>\s*<div class="lang-hi">', block, re.DOTALL)
-        opts_hi_html = re.search(r'<div class="lang-hi">(.*?)</div>\s*', block, re.DOTALL)
-        
-        # Helper to extract options and find which one is "correct"
-        def extract_options(opt_block):
-            if not opt_block: return [], 0
-            raw_opts = re.findall(r'<div class="option.*?">(.*?)</div>', opt_block.group(1))
-            correct_match = re.search(r'<div class="option correct">(.*?)</div>', opt_block.group(1))
-            correct_idx = 1
-            if correct_match:
-                try: correct_idx = raw_opts.index(correct_match.group(1)) + 1
-                except: pass
-            return raw_opts, correct_idx
+    # Try Format 2: const data = [...] (New Format)
+    match2 = re.search(r'const\s+data\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
+    if match2:
+        raw_data = json.loads(match2.group(1))
+        standardized = []
+        for item in raw_data:
+            # Split Question (English / Hindi)
+            q_parts = item.get("text", "").split(" / ")
+            q_en = q_parts[0] if len(q_parts) > 0 else ""
+            q_hi = q_parts[1] if len(q_parts) > 1 else ""
 
-        en_opts, correct_idx = extract_options(opts_en_html)
-        hi_opts, _ = extract_options(opts_hi_html)
-        
-        sol_en = re.search(r'<div class="lang-en">(.*?)</div>\s*</div>', block[block.find('class="solution"'):], re.DOTALL)
-        sol_hi = re.search(r'<div class="lang-hi">(.*?)</div>', block[block.find('class="solution"'):], re.DOTALL)
+            # Split Options (English / Hindi)
+            opts_en = []
+            opts_hi = []
+            for opt in item.get("options", []):
+                o_parts = opt.split(" / ")
+                opts_en.append(o_parts[0])
+                opts_hi.append(o_parts[1] if len(o_parts) > 1 else "")
 
-        questions_data.append({
-            "q_en": q_en.group(1).strip() if q_en else "",
-            "q_hi": q_hi.group(1).strip() if q_hi else "",
-            "opts_en": en_opts,
-            "opts_hi": hi_opts,
-            "correct": correct_idx,
-            "sol_en": sol_en.group(1).strip() if sol_en else "",
-            "sol_hi": sol_hi.group(1).strip() if sol_hi else ""
-        })
+            # Split Explanation (English <br><hr><br> Hindi)
+            sol_parts = item.get("explanation", "").split("<br><hr><br>")
+            sol_en = sol_parts[0] if len(sol_parts) > 0 else ""
+            sol_hi = sol_parts[1] if len(sol_parts) > 1 else ""
 
-    if not questions_data:
-        raise ValueError("Could not find any question data in the HTML file (Old or New format).")
-    
-    return questions_data
-    
+            standardized.append({
+                "q_en": q_en,
+                "q_hi": q_hi,
+                "opts_en": opts_en,
+                "opts_hi": opts_hi,
+                "correct": item.get("correctIndex", 0) + 1, # Convert 0-index to 1-index
+                "sol_en": sol_en,
+                "sol_hi": sol_hi
+            })
+        return standardized
+
+    raise ValueError("Could not find a supported question array in the HTML file.")
 
 # ================= COMMANDS =================
 async def quiz_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -238,7 +229,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "solution_text": {"en": esc(q.get("sol_en", "")), "hi": esc(q.get("sol_hi", ""))}
             }
             sections_dict[current_sec_name].append(item)
-
+            
         # FINAL OUTPUT STRUCTURE (As per CHSL-2025.json)
         output_data = {
             "meta": {
