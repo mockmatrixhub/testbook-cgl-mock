@@ -39,10 +39,58 @@ def esc(txt):
     )
 
 def parse_html_questions(html_content):
+    # Try the old format first (JavaScript array)
     match = re.search(r'const\s+questions\s*=\s*(\[.*?\]);', html_content, re.DOTALL)
-    if not match:
-        raise ValueError("Could not find 'const questions' array in the HTML file.")
-    return json.loads(match.group(1))
+    if match:
+        return json.loads(match.group(1))
+    
+    # NEW FORMAT DETECTION: Parse from HTML tags directly
+    # We use BeautifulSoup-like regex to extract parts
+    questions_data = []
+    
+    # Split by question cards to isolate each question's block
+    blocks = re.split(r'<div class="card">\s*<h3>Q\d+</h3>', html_content)
+    for block in blocks[1:]:  # Skip the first split before Q1
+        q_en = re.search(r'<div class="question lang-en">(.*?)</div>', block, re.DOTALL)
+        q_hi = re.search(r'<div class="question lang-hi">(.*?)</div>', block, re.DOTALL)
+        
+        # Options - New format provides them in list order
+        # Correct option is identified by class="option correct"
+        opts_en_html = re.search(r'<div class="lang-en">(.*?)</div>\s*<div class="lang-hi">', block, re.DOTALL)
+        opts_hi_html = re.search(r'<div class="lang-hi">(.*?)</div>\s*', block, re.DOTALL)
+        
+        # Helper to extract options and find which one is "correct"
+        def extract_options(opt_block):
+            if not opt_block: return [], 0
+            raw_opts = re.findall(r'<div class="option.*?">(.*?)</div>', opt_block.group(1))
+            correct_match = re.search(r'<div class="option correct">(.*?)</div>', opt_block.group(1))
+            correct_idx = 1
+            if correct_match:
+                try: correct_idx = raw_opts.index(correct_match.group(1)) + 1
+                except: pass
+            return raw_opts, correct_idx
+
+        en_opts, correct_idx = extract_options(opts_en_html)
+        hi_opts, _ = extract_options(opts_hi_html)
+        
+        sol_en = re.search(r'<div class="lang-en">(.*?)</div>\s*</div>', block[block.find('class="solution"'):], re.DOTALL)
+        sol_hi = re.search(r'<div class="lang-hi">(.*?)</div>', block[block.find('class="solution"'):], re.DOTALL)
+
+        questions_data.append({
+            "q_en": q_en.group(1).strip() if q_en else "",
+            "q_hi": q_hi.group(1).strip() if q_hi else "",
+            "opts_en": en_opts,
+            "opts_hi": hi_opts,
+            "correct": correct_idx,
+            "sol_en": sol_en.group(1).strip() if sol_en else "",
+            "sol_hi": sol_hi.group(1).strip() if sol_hi else ""
+        })
+
+    if not questions_data:
+        raise ValueError("Could not find any question data in the HTML file (Old or New format).")
+    
+    return questions_data
+    
 
 # ================= COMMANDS =================
 async def quiz_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
