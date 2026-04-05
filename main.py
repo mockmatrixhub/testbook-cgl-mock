@@ -270,8 +270,20 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=caption,
             parse_mode="HTML"
         )
+   
 
-        website_code = f'<div class="quiz" data-type="paid" data-id="{session["quiz_id"]}" data-title="{session["quiz_title"]}"></div>'
+    # Updated Format
+        website_code = (
+            f'{{"id": "{session["quiz_id"]}", '
+            f'"title": "{session["quiz_title"]}", '
+            f'"type": "paid", '
+            f'"releaseDate": "", '
+            f'"qs": "100", '
+            f'"time": "{session["timer_min"]}", '
+            f'"marks": "200"}'
+        )      
+
+        
         await update.message.reply_text(
             f"📋 <b>Website Code Snippet:</b>\n\n<pre><code class='language-html'>{html.escape(website_code)}</code></pre>",
             parse_mode="HTML"
