@@ -263,6 +263,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>📝 Total Questions:</b> {len(raw_questions)}\n\n"
             f"<b>📂 Sections:</b>\n{session['manual_sections']}"
         )
+        
 
         await update.message.reply_document(
             document=io.BytesIO(json_str.encode("utf-8")),
@@ -270,15 +271,37 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=caption,
             parse_mode="HTML"
         )
+        # ... existing code above in handle_document ...
 
-        website_code = f'<div class="quiz" data-type="paid" data-id="{session["quiz_id"]}" data-title="{session["quiz_title"]}"></div>'
+        # 1. Calculate stats for the snippet
+        total_qs = len(raw_questions)
+        # Use the correct_score from the first section or session default
+        # Note: Correct score is usually '2' for CGL/CHSL as per your session default
+        correct_val = int(output_data["meta"]["correct_score"])
+        total_marks = total_qs * correct_val
+        timer_str = f"{session['timer_min']} Min"
+
+        # 2. Generate the formatted JSON string as requested
+        website_code = (
+            f'{{"id": "{session["quiz_id"]}", '
+            f'"title": "{session["quiz_title"]}", '
+            f'"type": "paid", '
+            f'"releaseDate": "", '
+            f'"qs": {total_qs}, '
+            f'"time": "{timer_str}", '
+            f'"marks": {total_marks}}}'
+        )
+
+        # 3. Send the message to the user
         await update.message.reply_text(
-            f"📋 <b>Website Code Snippet:</b>\n\n<pre><code class='language-html'>{html.escape(website_code)}</code></pre>",
+            f"📋 <b>Website JSON Snippet:</b>\n\n"
+            f"<pre><code class='language-json'>{html.escape(website_code)}</code></pre>",
             parse_mode="HTML"
         )
         
         reset_session(uid)
 
+    
     except Exception as e:
         await update.message.reply_text(f"❌ Error processing file: {str(e)}")
 
